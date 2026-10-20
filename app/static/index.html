@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Notes + Ollama</title>
+  <link rel="stylesheet" href="/static/style.css?v=1">
+  <script defer src="/static/app.js?v=1"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Notes <span>+ Ollama</span></div>
+    <span class="app-status" id="app-status" aria-live="polite">Загрузка...</span>
+    <a href="/docs" target="_blank" rel="noreferrer">API /docs ↗</a>
+  </header>
+  <main class="layout">
+    <aside class="sidebar left">
+      <div class="section-heading"><h2>Заметки</h2><button id="new-note" class="primary small" title="Новая заметка">+ Создать</button></div>
+      <input id="search-input" type="search" placeholder="Поиск по всем заметкам" aria-label="Поиск заметок">
+      <div id="notes-list" class="notes-list" aria-label="Список заметок"></div>
+      <p id="notes-hint" class="hint">Заметки хранятся локально в SQLite.</p>
+    </aside>
+
+    <section class="center">
+      <div class="editor-panel">
+        <div class="editor-toolbar">
+          <div class="editor-heading"><input id="note-title" maxlength="200" placeholder="Название заметки" aria-label="Название заметки" disabled></div>
+          <div class="actions">
+            <span id="save-status" class="hint">—</span>
+            <button id="related-btn" class="secondary small" disabled title="Похожие заметки">Связанные</button>
+            <button id="rewrite-btn" class="secondary small" disabled title="Предложить улучшение текста">AI-редактор</button>
+            <button id="save-btn" class="secondary small" disabled title="Сохранить">Сохранить</button>
+            <button id="delete-btn" class="danger small" disabled title="Удалить заметку">Удалить</button>
+          </div>
+        </div>
+        <div id="related-panel" class="related-panel" hidden>
+          <div class="row"><strong>Похожие заметки</strong><button id="related-close" class="text-btn" aria-label="Закрыть">×</button></div>
+          <div id="related-items" class="related-items"></div>
+        </div>
+        <textarea id="note-content" class="editor" spellcheck="true" placeholder="Выберите заметку слева или создайте новую. Можно писать Markdown." aria-label="Содержимое заметки" disabled></textarea>
+        <div class="editor-footer">Обычный текст / Markdown · Автосохранение через 800 мс · Ctrl+S</div>
+      </div>
+
+      <div class="chat-panel">
+        <div class="chat-toolbar">
+          <h2>AI-чат <span class="subtle">по текущей заметке</span></h2>
+          <div class="chat-actions"><label class="chat-toggle" title="Только для следующего запроса: не добавлять предыдущие вопросы и ответы в контекст"><input type="checkbox" id="chat-no-history"> Без истории</label><button id="clear-chat" class="text-btn small" disabled>Очистить историю</button></div>
+        </div>
+        <div id="chat-messages" class="chat-messages" aria-live="polite"><div class="empty">Выберите заметку для начала диалога.</div></div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" rows="2" placeholder="Спросите о заметке… (Enter — отправить)" disabled aria-label="Вопрос нейросети"></textarea>
+          <button id="send-btn" type="submit" class="primary" disabled>Отправить</button>
+          <button id="stop-btn" type="button" class="secondary" hidden>Стоп</button>
+        </form>
+      </div>
+    </section>
+
+    <aside class="sidebar right">
+      <div class="section-heading"><h2>Настройки Ollama</h2></div>
+      <form id="settings-form" class="settings-form">
+        <label>URL сервера Ollama<input name="ollama_url" placeholder="http://127.0.0.1:11434" required></label>
+        <button id="load-models" class="secondary" type="button">Проверить соединение и модели</button>
+        <div id="ollama-status" class="hint">Модели загружаются с указанного сервера.</div>
+        <button id="ollama-diagnostics-btn" class="secondary" type="button">Диагностика Ollama</button>
+        <div id="ollama-diagnostics" class="hint" aria-live="polite">Проверить версию сервера и загруженные модели.</div>
+        <label>Модель чата<select name="chat_model"><option value="">Выбрать модель…</option></select></label>
+        <div id="model-quality-warning" class="hint" hidden>tinyllama может плохо понимать русские инструкции и повторять промпт. Для русскоязычного чата попробуйте более сильную instruct-модель, установленную на сервере Ollama.</div>
+        <label>Embedding-модель <span class="subtle">(необязательно)</span><select name="embedding_model"><option value="">Без embeddings</option></select></label>
+        <label>Thinking модели
+          <select name="think_mode" id="think-mode">
+            <option value="off">Выключено</option>
+            <option value="on">Включено</option>
+            <option value="default">По умолчанию модели</option>
+          </select>
+        </label>
+        <div id="thinking-hint" class="hint">Доступность thinking зависит от выбранной модели Ollama.</div>
+        <label>Режим поиска
+          <select name="search_mode"><option value="off">Выключен</option><option value="fts">FTS5 (по словам)</option><option value="hybrid">Гибридный (FTS + embeddings)</option></select>
+        </label>
+        <div class="settings-grid">
+          <label>Temperature<input name="temperature" type="number" min="0" max="2" step="0.1"></label>
+          <label>Top P<input name="top_p" type="number" min="0" max="1" step="0.05"></label>
+          <label>Num ctx<input name="num_ctx" type="number" min="512" max="131072" step="512"></label>
+          <label>Max tokens<input name="num_predict" type="number" min="64" max="16384" step="64"></label>
+          <label>Таймаут Ollama, с<input name="read_timeout_seconds" type="number" min="15" max="1800" step="15" title="Максимальная пауза без данных от Ollama"></label>
+          <label>Фрагментов RAG<input name="context_chunks" type="number" min="0" max="8" step="1"></label>
+          <label>Сообщений истории<input name="history_messages" type="number" min="0" max="40" step="1"></label>
+        </div>
+        <label>Системный промпт<textarea name="system_prompt" rows="6"></textarea></label>
+        <button type="submit" class="primary full">Сохранить настройки</button>
+        <div class="divider"></div>
+        <div class="row"><strong>Индекс embeddings</strong><button id="refresh-index" type="button" class="text-btn">Обновить статус</button></div>
+        <div id="index-status" class="hint">—</div>
+        <button id="rebuild-index" type="button" class="secondary full">Доиндексировать заметки</button>
+      </form>
+    </aside>
+  </main>
+
+  <div id="rewrite-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="AI-редактирование">
+      <div class="row"><h2>AI-редактор</h2><button id="rewrite-close" class="text-btn">×</button></div>
+      <label>Инструкция по изменению текста (для вопросов и общения используй AI-чат)<textarea id="rewrite-instruction" rows="2">Улучши стиль, ясность и структуру текста, сохранив смысл.</textarea></label>
+      <div class="row"><button id="rewrite-run" class="primary">Предложить текст</button><span id="rewrite-status" class="hint">Изменения не применяются автоматически.</span></div>
+      <div id="rewrite-activity" class="rewrite-activity" hidden></div>
+      <textarea id="rewrite-preview" rows="14" placeholder="Здесь появится предложенная редакция…" aria-label="Предложенный текст"></textarea>
+      <div class="row right-aligned"><button id="rewrite-cancel" class="secondary">Отмена</button><button id="rewrite-apply" class="primary" disabled>Применить к заметке</button></div>
+    </div>
+  </div>
+</body>
+</html>
